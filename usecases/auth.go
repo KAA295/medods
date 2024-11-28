@@ -1,8 +1,10 @@
 package usecases
 
+import (
+	"github.com/KAA295/medods/domain"
+)
+
 type AuthService interface {
-	GenerateAccessToken()
-	GenerateRefreshToken()
-	GenerateTokens()
-	RefreshTokens()
+	GenerateTokens(userID string, ip string) (domain.Tokens, error)
+	RefreshTokens(userID string, ip string, accessToken string, refreshToken string) (domain.Tokens, error)
 }

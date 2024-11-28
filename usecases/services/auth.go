@@ -3,41 +3,127 @@ package services
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/KAA295/medods/domain"
+	"github.com/KAA295/medods/repository"
 )
 
-type AuthService struct{}
-
-func NewAuthService() *AuthService {
-	return &AuthService{}
+type AuthService struct {
+	authRepository repository.AuthRepository
 }
 
-func (s *AuthService) generateAccessToken(userID string, ip string) (string, error) {
+func NewAuthService(authRepository repository.AuthRepository) *AuthService {
+	return &AuthService{authRepository: authRepository}
+}
+
+func (s *AuthService) generateAccessToken(userID string, ip string) (domain.AccessToken, error) {
+	expTime := time.Now().Add(time.Minute * 30)
 	claims := domain.CustomClaims{
 		UserID: userID,
 		Ip:     ip,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute * 30)),
+			ExpiresAt: jwt.NewNumericDate(expTime),
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 
-	return token.SignedString([]byte("TODO ENV"))
+	signedToken, err := token.SignedString([]byte("TODO ENV"))
+	if err != nil {
+		return domain.AccessToken{}, err
+	}
+
+	return domain.AccessToken{
+		Token:   signedToken,
+		ExpTime: expTime,
+	}, nil
 }
 
-func (s *AuthService) generateRefreshToken() (string, error) {
+func (s *AuthService) generateRefreshToken() (domain.RefreshToken, error) {
 	data := make([]byte, 64)
 	_, err := rand.Read(data)
-	return base64.URLEncoding.EncodeToString(data), err
+	return domain.RefreshToken{Token: base64.URLEncoding.EncodeToString(data)}, err
 }
 
-func (s *AuthService) GenerateTokens() {
+// Generates tokens and returns (accessToken, refreshToken, error)
+func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, error) {
+	_, _, err := s.authRepository.GetToken(userID)
+	if !errors.Is(err, domain.ErrNotFound) {
+		return domain.Tokens{}, domain.ErrUnauthorized
+	}
+
+	accessToken, err := s.generateAccessToken(userID, ip)
+	if err != nil {
+		return domain.Tokens{}, err
+	}
+
+	refreshToken, err := s.generateRefreshToken()
+	if err != nil {
+		return domain.Tokens{}, err
+	}
+
+	encryptedToken, err := bcrypt.GenerateFromPassword([]byte(refreshToken.Token), bcrypt.DefaultCost)
+	if err != nil {
+		return domain.Tokens{}, err
+	}
+	expTime := time.Now().Add(time.Hour * 24)
+
+	s.authRepository.AddToken(encryptedToken, userID, expTime)
+
+	return domain.Tokens{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }
 
-func (s *AuthService) RefreshToken() {
+func (s *AuthService) RefreshToken(userID string, ip string, accessToken string, refreshToken string) (domain.Tokens, error) {
+	token, expTime, err := s.authRepository.GetToken(userID)
+	if err != nil {
+		return domain.Tokens{}, err
+	}
+
+	if time.Now().After(expTime) {
+		err := s.authRepository.DeleteToken(userID)
+		if err != nil {
+			return domain.Tokens{}, err
+		}
+		return domain.Tokens{}, domain.ErrUnauthorized
+	}
+
+	claims := &domain.CustomClaims{}
+
+	_, err = jwt.ParseWithClaims(accessToken, claims, func(token *jwt.Token) (interface{}, error) {
+		return []byte("TODO ENV"), nil
+	})
+	if err != nil {
+		return domain.Tokens{}, domain.ErrBadRequest
+	}
+
+	if time.Now().Before(claims.ExpiresAt.Time) {
+		return domain.Tokens{}, domain.ErrUnauthorized
+	}
+
+	if userID != claims.UserID {
+		return domain.Tokens{}, domain.ErrUnauthorized
+	}
+
+	err = bcrypt.CompareHashAndPassword(token, []byte(refreshToken))
+	if err != nil {
+		return domain.Tokens{}, domain.ErrUnauthorized
+	}
+
+	if claims.Ip != ip {
+		// Send email
+	}
+
+	err = s.authRepository.DeleteToken(userID)
+	if err != nil {
+		return domain.Tokens{}, err
+	}
+	return s.GenerateTokens(userID, ip)
 }
