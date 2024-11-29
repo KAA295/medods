@@ -10,6 +10,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/ajg/form v1.5.1 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
+	github.com/beevik/guid v1.0.0 // indirect
 	github.com/bgentry/speakeasy v0.1.0 // indirect
 	github.com/denisenkom/go-mssqldb v0.9.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect

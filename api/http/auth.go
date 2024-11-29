@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/beevik/guid"
 	"github.com/go-chi/render"
 
 	"github.com/KAA295/medods/api/types"
@@ -22,14 +23,18 @@ func NewAuthHandler(authService usecases.AuthService) *authHandler {
 
 func (h *authHandler) GenerateTokens(w http.ResponseWriter, r *http.Request) {
 	var req types.GenerateTokensRequest
-	ip := r.RemoteAddr                          // Real ip?
-	err := json.NewDecoder(r.Body).Decode(&req) // Validate guid
+	ip := r.RemoteAddr
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "invalid request"})
 		return
 	}
 	if req.UserID == "" {
 		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "missing guid"})
+		return
+	}
+	if !guid.IsGuid(req.UserID) {
+		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "guid is not valid"})
 		return
 	}
 

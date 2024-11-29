@@ -11,14 +11,16 @@ import (
 
 	"github.com/KAA295/medods/domain"
 	"github.com/KAA295/medods/repository"
+	"github.com/KAA295/medods/usecases"
 )
 
 type AuthService struct {
 	authRepository repository.AuthRepository
+	emailService   usecases.EmailService
 }
 
-func NewAuthService(authRepository repository.AuthRepository) *AuthService {
-	return &AuthService{authRepository: authRepository}
+func NewAuthService(authRepository repository.AuthRepository, emailService usecases.EmailService) *AuthService {
+	return &AuthService{authRepository: authRepository, emailService: emailService}
 }
 
 func (s *AuthService) generateAccessToken(userID string, ip string) (domain.AccessToken, error) {
@@ -50,7 +52,6 @@ func (s *AuthService) generateRefreshToken() (domain.RefreshToken, error) {
 	return domain.RefreshToken{Token: base64.URLEncoding.EncodeToString(data)}, err
 }
 
-// Generates tokens and returns (accessToken, refreshToken, error)
 func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, error) {
 	_, err := s.authRepository.GetToken(userID)
 	if !errors.Is(err, domain.ErrNotFound) {
@@ -125,7 +126,7 @@ func (s *AuthService) RefreshTokens(userID string, ip string, accessToken string
 	}
 
 	if claims.Ip != ip {
-		// Send email
+		s.emailService.Send("Warning, ip changed")
 	}
 
 	err = s.authRepository.DeleteToken(userID)

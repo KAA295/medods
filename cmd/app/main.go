@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -16,17 +15,17 @@ import (
 const addr = ":8000"
 
 func main() {
-	psqlInfo := fmt.Sprintf(
-		"host=storage port=5432 user=postgres password=password dbname=postgres sslmode=disable",
-	)
+	psqlInfo := "host=storage port=5432 user=postgres password=password dbname=postgres sslmode=disable"
 
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
 		panic(err)
 	}
 
+	emailService := services.NewEmailService()
+
 	authRepo := postgres.NewAuthRepository(db)
-	authService := services.NewAuthService(authRepo)
+	authService := services.NewAuthService(authRepo, emailService)
 	authHandler := handlers.NewAuthHandler(authService)
 
 	r := chi.NewRouter()
