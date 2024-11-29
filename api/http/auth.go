@@ -1,41 +1,42 @@
 package http
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/KAA295/medods/api/types"
 	"github.com/KAA295/medods/pkg"
-	"github.com/KAA295/medods/usecases/services"
+	"github.com/KAA295/medods/usecases"
 )
 
 type authHandler struct {
-	service services.AuthService
+	service usecases.AuthService
 }
 
-func NewAuthHandler(authService services.AuthService)
+func NewAuthHandler(authService usecases.AuthService) *authHandler {
+	return &authHandler{service: authService}
+}
 
 func (h *authHandler) GenerateTokens(w http.ResponseWriter, r *http.Request) {
-	ip := r.RemoteAddr // Real ip?
-	userID := chi.URLParam(r, "guid")
-	if userID == "" {
+	var req types.GenerateTokensRequest
+	ip := r.RemoteAddr                          // Real ip?
+	err := json.NewDecoder(r.Body).Decode(&req) // Validate guid
+	if err != nil {
+		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "invalid request"})
+		return
+	}
+	if req.UserID == "" {
 		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "missing guid"})
 		return
 	}
 
-	tokens, err := h.service.GenerateTokens(userID, ip)
+	tokens, err := h.service.GenerateTokens(req.UserID, ip)
 	if err != nil {
 		pkg.ProcessError(w, r, pkg.ErrorResponse{Message: err.Error(), Err: err})
 		return
-	}
-
-	cookie := &http.Cookie{
-		Name:    "access_token",
-		Path:    "/",
-		Value:   tokens.AccessToken.Token,
-		Expires: tokens.AccessToken.ExpTime,
 	}
 
 	resp := types.TokensResponse{
@@ -43,36 +44,41 @@ func (h *authHandler) GenerateTokens(w http.ResponseWriter, r *http.Request) {
 		RefreshToken: tokens.RefreshToken.Token,
 	}
 
-	http.SetCookie(w, cookie)
-
 	render.Status(r, http.StatusOK)
 
 	render.JSON(w, r, resp)
 }
 
 func (h *authHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
+	var req types.RefreshTokensRequest
 	ip := r.RemoteAddr
-	userID := chi.URLParam(r, "guid") // TODO: mb struct
-	if userID == "" {
+	err := json.NewDecoder(r.Body).Decode(&req) // Validate guid
+	if err != nil {
+		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "invalid request"})
+		return
+	}
+	if req.UserID == "" {
 		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "missing guid"})
 		return
 	}
-	refreshToken := chi.URLParam(r, "refresh_token")
-	if refreshToken == "" {
+	if req.RefreshToken == "" {
 		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "missing refresh_token"})
 		return
 	}
-	accessTokenCookie, err := r.Cookie("access_token")
-	if err != nil {
-		pkg.Unauthorized(w, r, pkg.ErrorResponse{Message: "no access_token"})
+
+	authHeader := r.Header.Get("Authorization")
+	t := strings.Split(authHeader, " ")
+	if len(t) != 2 {
+		pkg.Unauthorized(w, r, pkg.ErrorResponse{Message: "unauthorized"})
 		return
 	}
 
-	accessToken := accessTokenCookie.Value
+	accessToken := t[1]
 
-	tokens, err := h.service.RefreshToken(userID, ip, accessToken, refreshToken)
+	tokens, err := h.service.RefreshTokens(req.UserID, ip, accessToken, req.RefreshToken)
 	if err != nil {
 		pkg.ProcessError(w, r, pkg.ErrorResponse{Message: err.Error(), Err: err})
+		return
 	}
 
 	cookie := &http.Cookie{

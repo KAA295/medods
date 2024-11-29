@@ -1,9 +1,11 @@
 package repository
 
-import "time"
+import (
+	"github.com/KAA295/medods/domain"
+)
 
 type AuthRepository interface {
-	GetToken(string) ([]byte, time.Time, error)
-	AddToken(token []byte, userID string, expires time.Time)
-	DeleteToken(string) error
+	GetToken(userID string) (domain.RefreshEntry, error)
+	AddToken(refreshToken domain.RefreshEntry) error
+	DeleteToken(userID string) error
 }

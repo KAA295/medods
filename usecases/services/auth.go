@@ -22,7 +22,7 @@ func NewAuthService(authRepository repository.AuthRepository) *AuthService {
 }
 
 func (s *AuthService) generateAccessToken(userID string, ip string) (domain.AccessToken, error) {
-	expTime := time.Now().Add(time.Minute * 30)
+	expTime := time.Now().Add(time.Second * 30)
 	claims := domain.CustomClaims{
 		UserID: userID,
 		Ip:     ip,
@@ -45,14 +45,14 @@ func (s *AuthService) generateAccessToken(userID string, ip string) (domain.Acce
 }
 
 func (s *AuthService) generateRefreshToken() (domain.RefreshToken, error) {
-	data := make([]byte, 64)
+	data := make([]byte, 32)
 	_, err := rand.Read(data)
 	return domain.RefreshToken{Token: base64.URLEncoding.EncodeToString(data)}, err
 }
 
 // Generates tokens and returns (accessToken, refreshToken, error)
 func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, error) {
-	_, _, err := s.authRepository.GetToken(userID)
+	_, err := s.authRepository.GetToken(userID)
 	if !errors.Is(err, domain.ErrNotFound) {
 		return domain.Tokens{}, domain.ErrUnauthorized
 	}
@@ -73,7 +73,14 @@ func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, e
 	}
 	expTime := time.Now().Add(time.Hour * 24)
 
-	s.authRepository.AddToken(encryptedToken, userID, expTime)
+	err = s.authRepository.AddToken(domain.RefreshEntry{
+		UserID:  userID,
+		Token:   string(encryptedToken),
+		Expires: expTime,
+	})
+	if err != nil {
+		return domain.Tokens{}, err
+	}
 
 	return domain.Tokens{
 		AccessToken:  accessToken,
@@ -81,13 +88,13 @@ func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, e
 	}, nil
 }
 
-func (s *AuthService) RefreshToken(userID string, ip string, accessToken string, refreshToken string) (domain.Tokens, error) {
-	token, expTime, err := s.authRepository.GetToken(userID)
+func (s *AuthService) RefreshTokens(userID string, ip string, accessToken string, refreshToken string) (domain.Tokens, error) {
+	token, err := s.authRepository.GetToken(userID)
 	if err != nil {
 		return domain.Tokens{}, err
 	}
 
-	if time.Now().After(expTime) {
+	if time.Now().After(token.Expires) {
 		err := s.authRepository.DeleteToken(userID)
 		if err != nil {
 			return domain.Tokens{}, err
@@ -100,7 +107,7 @@ func (s *AuthService) RefreshToken(userID string, ip string, accessToken string,
 	_, err = jwt.ParseWithClaims(accessToken, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte("TODO ENV"), nil
 	})
-	if err != nil {
+	if err != nil && !errors.Is(err, jwt.ErrTokenExpired) {
 		return domain.Tokens{}, domain.ErrBadRequest
 	}
 
@@ -112,7 +119,7 @@ func (s *AuthService) RefreshToken(userID string, ip string, accessToken string,
 		return domain.Tokens{}, domain.ErrUnauthorized
 	}
 
-	err = bcrypt.CompareHashAndPassword(token, []byte(refreshToken))
+	err = bcrypt.CompareHashAndPassword([]byte(token.Token), []byte(refreshToken))
 	if err != nil {
 		return domain.Tokens{}, domain.ErrUnauthorized
 	}
