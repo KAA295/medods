@@ -6,6 +6,8 @@ services:
     depends_on:
       storage:
         condition: service_healthy
+    environment:
+      - SECRET=your-256-bit-secret
     ports:
       - 8000:8000
   storage:

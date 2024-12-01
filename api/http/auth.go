@@ -21,6 +21,14 @@ func NewAuthHandler(authService usecases.AuthService) *authHandler {
 	return &authHandler{service: authService}
 }
 
+// @Summary Generate Tokens
+// @Description Generate access_token and refresh_token
+// @Param json-body body types.GenerateTokensRequest true "guid"
+// @Success 200 {object} types.TokensResponse "Token"
+// @Failure 400 {object} pkg.ErrorResponse
+// @Failure 401 {object} pkg.ErrorResponse
+// @Failure 500 {object} pkg.ErrorResponse
+// @Router /generate_tokens [post]
 func (h *authHandler) GenerateTokens(w http.ResponseWriter, r *http.Request) {
 	var req types.GenerateTokensRequest
 	ip := r.RemoteAddr
@@ -54,6 +62,16 @@ func (h *authHandler) GenerateTokens(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, resp)
 }
 
+// @Summary Refresh Tokens
+// @Description Refresh access_token and refresh_token
+// @Param json-body body types.RefreshTokensRequest true "guid and refresh_token"
+// @Param Authorization header string true "access_token with Bearer"
+// @Success 200 {object} types.TokensResponse "Token"
+// @Failure 400 {object} pkg.ErrorResponse
+// @Failure 401 {object} pkg.ErrorResponse
+// @Failure 404 {object} pkg.ErrorResponse
+// @Failure 500 {object} pkg.ErrorResponse
+// @Router /refresh_tokens [post]
 func (h *authHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
 	var req types.RefreshTokensRequest
 	ip := r.RemoteAddr

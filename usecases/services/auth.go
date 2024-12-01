@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -35,7 +37,7 @@ func (s *AuthService) generateAccessToken(userID string, ip string) (domain.Acce
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
 
-	signedToken, err := token.SignedString([]byte("TODO ENV"))
+	signedToken, err := token.SignedString([]byte(os.Getenv("SECRET")))
 	if err != nil {
 		return domain.AccessToken{}, err
 	}
@@ -60,16 +62,19 @@ func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, e
 
 	accessToken, err := s.generateAccessToken(userID, ip)
 	if err != nil {
+		fmt.Println("1", err)
 		return domain.Tokens{}, err
 	}
 
 	refreshToken, err := s.generateRefreshToken()
 	if err != nil {
+		fmt.Println("2", err)
 		return domain.Tokens{}, err
 	}
 
 	encryptedToken, err := bcrypt.GenerateFromPassword([]byte(refreshToken.Token), bcrypt.DefaultCost)
 	if err != nil {
+		fmt.Println("3", err)
 		return domain.Tokens{}, err
 	}
 	expTime := time.Now().Add(time.Hour * 24)
@@ -80,6 +85,7 @@ func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, e
 		Expires: expTime,
 	})
 	if err != nil {
+		fmt.Println("4", err)
 		return domain.Tokens{}, err
 	}
 
@@ -106,7 +112,7 @@ func (s *AuthService) RefreshTokens(userID string, ip string, accessToken string
 	claims := &domain.CustomClaims{}
 
 	_, err = jwt.ParseWithClaims(accessToken, claims, func(token *jwt.Token) (interface{}, error) {
-		return []byte("TODO ENV"), nil
+		return []byte(os.Getenv("SECRET")), nil
 	})
 	if err != nil && !errors.Is(err, jwt.ErrTokenExpired) {
 		return domain.Tokens{}, domain.ErrBadRequest

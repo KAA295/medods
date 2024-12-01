@@ -10,7 +10,7 @@ import (
 )
 
 type ErrorResponse struct {
-	Message string `json:"message"`
+	Message string `json:"message" example:"internal error"`
 	Err     error  `json:"-"`
 }
 
