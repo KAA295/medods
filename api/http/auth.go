@@ -75,13 +75,17 @@ func (h *authHandler) GenerateTokens(w http.ResponseWriter, r *http.Request) {
 func (h *authHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
 	var req types.RefreshTokensRequest
 	ip := r.RemoteAddr
-	err := json.NewDecoder(r.Body).Decode(&req) // Validate guid
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
 		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "invalid request"})
 		return
 	}
 	if req.UserID == "" {
 		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "missing guid"})
+		return
+	}
+	if !guid.IsGuid(req.UserID) {
+		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "guid is not valid"})
 		return
 	}
 	if req.RefreshToken == "" {
@@ -108,19 +112,10 @@ func (h *authHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie := &http.Cookie{
-		Name:    "access_token",
-		Path:    "/",
-		Value:   tokens.AccessToken.Token,
-		Expires: tokens.AccessToken.ExpTime,
-	}
-
 	resp := types.TokensResponse{
 		AccessToken:  tokens.AccessToken.Token,
 		RefreshToken: tokens.RefreshToken.Token,
 	}
-
-	http.SetCookie(w, cookie)
 
 	render.Status(r, http.StatusOK)
 
