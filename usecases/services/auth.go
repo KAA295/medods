@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"os"
 	"time"
 
@@ -14,6 +13,11 @@ import (
 	"github.com/KAA295/medods/domain"
 	"github.com/KAA295/medods/repository"
 	"github.com/KAA295/medods/usecases"
+)
+
+const (
+	AccessTokenExpTime  = time.Second * 30 // For easier tests
+	RefreshTokenExpTime = time.Hour * 24
 )
 
 type AuthService struct {
@@ -26,7 +30,7 @@ func NewAuthService(authRepository repository.AuthRepository, emailService useca
 }
 
 func (s *AuthService) generateAccessToken(userID string, ip string) (domain.AccessToken, error) {
-	expTime := time.Now().Add(time.Second * 30)
+	expTime := time.Now().Add(AccessTokenExpTime)
 	claims := domain.CustomClaims{
 		UserID: userID,
 		Ip:     ip,
@@ -62,22 +66,19 @@ func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, e
 
 	accessToken, err := s.generateAccessToken(userID, ip)
 	if err != nil {
-		fmt.Println("1", err)
 		return domain.Tokens{}, err
 	}
 
 	refreshToken, err := s.generateRefreshToken()
 	if err != nil {
-		fmt.Println("2", err)
 		return domain.Tokens{}, err
 	}
 
 	encryptedToken, err := bcrypt.GenerateFromPassword([]byte(refreshToken.Token), bcrypt.DefaultCost)
 	if err != nil {
-		fmt.Println("3", err)
 		return domain.Tokens{}, err
 	}
-	expTime := time.Now().Add(time.Hour * 24)
+	expTime := time.Now().Add(RefreshTokenExpTime)
 
 	err = s.authRepository.AddToken(domain.RefreshEntry{
 		UserID:  userID,
@@ -85,7 +86,6 @@ func (s *AuthService) GenerateTokens(userID string, ip string) (domain.Tokens, e
 		Expires: expTime,
 	})
 	if err != nil {
-		fmt.Println("4", err)
 		return domain.Tokens{}, err
 	}
 

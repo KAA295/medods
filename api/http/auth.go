@@ -90,9 +90,13 @@ func (h *authHandler) RefreshTokens(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "missing authorization header"})
+		return
+	}
 	t := strings.Split(authHeader, " ")
 	if len(t) != 2 {
-		pkg.Unauthorized(w, r, pkg.ErrorResponse{Message: "unauthorized"})
+		pkg.BadRequest(w, r, pkg.ErrorResponse{Message: "authorization header has a wrong format"})
 		return
 	}
 

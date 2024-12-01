@@ -29,5 +29,11 @@ services:
       storage:
         condition: service_healthy
     entrypoint: ["sh", "-c", "sql-migrate up -config migrations/migrator/config/dbconfig.yml -env=\"docker\""]
+  tests:
+    build:
+      dockerfile: tests/Dockerfile
+      context: ./
+    profiles:
+      - tests
 
 
